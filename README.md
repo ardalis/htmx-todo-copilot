@@ -292,4 +292,8 @@ Initial working version between browsers instances:
 
 ![image](https://github.com/user-attachments/assets/5dd3fc1d-f0bc-44e1-b989-9f676ae5f3e8)
 
+## Let's Refactor to a Smaller Program.cs
+
+![image](https://github.com/user-attachments/assets/b2892138-7738-4d8d-9b46-b153102880fe)
+
 
