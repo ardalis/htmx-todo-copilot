@@ -288,4 +288,8 @@ public class TodoNotificationService : ITodoNotificationService
 }
 ```
 
+Initial working version between browsers instances:
+
+![image](https://github.com/user-attachments/assets/5dd3fc1d-f0bc-44e1-b989-9f676ae5f3e8)
+
 
