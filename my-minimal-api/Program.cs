@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MyMinimalApi.Models;
 using MyMinimalApi.Services;
+using MyMinimalApi.Middleware;
 using Serilog;
 using Serilog.Events;
 
@@ -35,6 +36,9 @@ var app = builder.Build();
 app.UseStaticFiles();
 app.UseAntiforgery();
 
+// Add our custom user action logging middleware
+app.UseMiddleware<UserActionLoggingMiddleware>();
+
 // Seed some sample data
 using (var scope = app.Services.CreateScope())
 {
@@ -57,14 +61,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Main page route
-app.MapGet("/", (HttpContext context) => 
-{
-    var userAgent = context.Request.Headers.UserAgent.ToString();
-    var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-    
-    Log.Information("🏠 User accessed main page from IP: {ClientIP}, UserAgent: {UserAgent}", clientIP, userAgent);
-    
-    return Results.Content("""
+app.MapGet("/", () => Results.Content("""
 <!DOCTYPE html>
 <html>
 <head>
@@ -154,17 +151,12 @@ app.MapGet("/", (HttpContext context) =>
     </script>
 </body>
 </html>
-""", "text/html");
-});
+""", "text/html"));
 
 // API endpoints
-app.MapGet("/todos", async (TodoContext db, HttpContext context) =>
+app.MapGet("/todos", async (TodoContext db) =>
 {
-    var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-    Log.Information("📖 User {ClientIP} requested todo list", clientIP);
-    
     var todos = await db.TodoItems.OrderBy(t => t.CreatedAt).ToListAsync();
-    Log.Information("📋 Returning {TodoCount} todo items to user {ClientIP}", todos.Count, clientIP);
     var html = $"""
         <div class="todo-container">
             <form hx-post="/todos" hx-target="#todo-list" hx-swap="beforeend">
@@ -191,24 +183,16 @@ app.MapGet("/todos", async (TodoContext db, HttpContext context) =>
     return Results.Content(html, "text/html");
 });
 
-app.MapPost("/todos", async (TodoContext db, IFormCollection form, HttpContext context) =>
+app.MapPost("/todos", async (TodoContext db, IFormCollection form) =>
 {
-    var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     var title = form["title"].ToString();
     
-    Log.Information("➕ User {ClientIP} attempting to create todo with title: '{Title}'", clientIP, title);
-    
     if (string.IsNullOrWhiteSpace(title))
-    {
-        Log.Warning("❌ User {ClientIP} attempted to create todo with empty title", clientIP);
         return Results.BadRequest();
-    }
 
     var todo = new TodoItem { Title = title };
     db.TodoItems.Add(todo);
     await db.SaveChangesAsync();
-    
-    Log.Information("✅ User {ClientIP} successfully created todo item {TodoId}: '{Title}'", clientIP, todo.Id, todo.Title);
 
     var html = $"""
         <div class="todo-item" id="todo-{todo.Id}">
@@ -225,24 +209,14 @@ app.MapPost("/todos", async (TodoContext db, IFormCollection form, HttpContext c
     return Results.Content(html, "text/html");
 }).DisableAntiforgery();
 
-app.MapPut("/todos/{id}/toggle", async (int id, TodoContext db, HttpContext context) =>
+app.MapPut("/todos/{id}/toggle", async (int id, TodoContext db) =>
 {
-    var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-    Log.Information("🔄 User {ClientIP} attempting to toggle todo item {TodoId}", clientIP, id);
-    
     var todo = await db.TodoItems.FindAsync(id);
     if (todo == null)
-    {
-        Log.Warning("❌ User {ClientIP} attempted to toggle non-existent todo item {TodoId}", clientIP, id);
         return Results.NotFound();
-    }
 
-    var oldStatus = todo.IsCompleted;
     todo.IsCompleted = !todo.IsCompleted;
     await db.SaveChangesAsync();
-    
-    Log.Information("✅ User {ClientIP} toggled todo item {TodoId} '{Title}' from {OldStatus} to {NewStatus}", 
-        clientIP, todo.Id, todo.Title, oldStatus, todo.IsCompleted);
 
     var html = $"""
         <div class="todo-item" id="todo-{todo.Id}">
@@ -260,23 +234,14 @@ app.MapPut("/todos/{id}/toggle", async (int id, TodoContext db, HttpContext cont
     return Results.Content(html, "text/html");
 });
 
-app.MapDelete("/todos/{id}", async (int id, TodoContext db, HttpContext context) =>
+app.MapDelete("/todos/{id}", async (int id, TodoContext db) =>
 {
-    var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-    Log.Information("🗑️ User {ClientIP} attempting to delete todo item {TodoId}", clientIP, id);
-    
     var todo = await db.TodoItems.FindAsync(id);
     if (todo == null)
-    {
-        Log.Warning("❌ User {ClientIP} attempted to delete non-existent todo item {TodoId}", clientIP, id);
         return Results.NotFound();
-    }
 
-    var todoTitle = todo.Title; // Store title before deletion for logging
     db.TodoItems.Remove(todo);
     await db.SaveChangesAsync();
-    
-    Log.Information("🗑️ User {ClientIP} successfully deleted todo item {TodoId}: '{Title}'", clientIP, id, todoTitle);
 
     return Results.Content("", "text/html");
 });
