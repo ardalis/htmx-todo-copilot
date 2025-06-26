@@ -4,8 +4,25 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MyMinimalApi.Models;
 using MyMinimalApi.Services;
+using Serilog;
+using Serilog.Events;
+
+// Configure Serilog
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
+    .WriteTo.File("logs/todo-app-.txt", 
+        rollingInterval: RollingInterval.Day,
+        outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
+    .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Use Serilog for logging
+builder.Host.UseSerilog();
 
 // Add services
 builder.Services.AddDbContext<TodoContext>(options =>
@@ -24,17 +41,30 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<TodoContext>();
     if (!context.TodoItems.Any())
     {
+        Log.Information("🌱 Seeding database with initial todo items");
         context.TodoItems.AddRange(
             new TodoItem { Title = "Learn HTMX", IsCompleted = false },
             new TodoItem { Title = "Build Todo App", IsCompleted = false },
             new TodoItem { Title = "Deploy to Azure", IsCompleted = false }
         );
         context.SaveChanges();
+        Log.Information("✅ Database seeded with {TodoCount} initial items", 3);
+    }
+    else
+    {
+        Log.Information("📋 Database already contains {ExistingTodoCount} todo items", context.TodoItems.Count());
     }
 }
 
 // Main page route
-app.MapGet("/", () => Results.Content("""
+app.MapGet("/", (HttpContext context) => 
+{
+    var userAgent = context.Request.Headers.UserAgent.ToString();
+    var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    
+    Log.Information("🏠 User accessed main page from IP: {ClientIP}, UserAgent: {UserAgent}", clientIP, userAgent);
+    
+    return Results.Content("""
 <!DOCTYPE html>
 <html>
 <head>
@@ -124,12 +154,17 @@ app.MapGet("/", () => Results.Content("""
     </script>
 </body>
 </html>
-""", "text/html"));
+""", "text/html");
+});
 
 // API endpoints
-app.MapGet("/todos", async (TodoContext db) =>
+app.MapGet("/todos", async (TodoContext db, HttpContext context) =>
 {
+    var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    Log.Information("📖 User {ClientIP} requested todo list", clientIP);
+    
     var todos = await db.TodoItems.OrderBy(t => t.CreatedAt).ToListAsync();
+    Log.Information("📋 Returning {TodoCount} todo items to user {ClientIP}", todos.Count, clientIP);
     var html = $"""
         <div class="todo-container">
             <form hx-post="/todos" hx-target="#todo-list" hx-swap="beforeend">
@@ -156,15 +191,24 @@ app.MapGet("/todos", async (TodoContext db) =>
     return Results.Content(html, "text/html");
 });
 
-app.MapPost("/todos", async (TodoContext db, IFormCollection form) =>
+app.MapPost("/todos", async (TodoContext db, IFormCollection form, HttpContext context) =>
 {
+    var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     var title = form["title"].ToString();
+    
+    Log.Information("➕ User {ClientIP} attempting to create todo with title: '{Title}'", clientIP, title);
+    
     if (string.IsNullOrWhiteSpace(title))
+    {
+        Log.Warning("❌ User {ClientIP} attempted to create todo with empty title", clientIP);
         return Results.BadRequest();
+    }
 
     var todo = new TodoItem { Title = title };
     db.TodoItems.Add(todo);
     await db.SaveChangesAsync();
+    
+    Log.Information("✅ User {ClientIP} successfully created todo item {TodoId}: '{Title}'", clientIP, todo.Id, todo.Title);
 
     var html = $"""
         <div class="todo-item" id="todo-{todo.Id}">
@@ -181,14 +225,24 @@ app.MapPost("/todos", async (TodoContext db, IFormCollection form) =>
     return Results.Content(html, "text/html");
 }).DisableAntiforgery();
 
-app.MapPut("/todos/{id}/toggle", async (int id, TodoContext db) =>
+app.MapPut("/todos/{id}/toggle", async (int id, TodoContext db, HttpContext context) =>
 {
+    var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    Log.Information("🔄 User {ClientIP} attempting to toggle todo item {TodoId}", clientIP, id);
+    
     var todo = await db.TodoItems.FindAsync(id);
     if (todo == null)
+    {
+        Log.Warning("❌ User {ClientIP} attempted to toggle non-existent todo item {TodoId}", clientIP, id);
         return Results.NotFound();
+    }
 
+    var oldStatus = todo.IsCompleted;
     todo.IsCompleted = !todo.IsCompleted;
     await db.SaveChangesAsync();
+    
+    Log.Information("✅ User {ClientIP} toggled todo item {TodoId} '{Title}' from {OldStatus} to {NewStatus}", 
+        clientIP, todo.Id, todo.Title, oldStatus, todo.IsCompleted);
 
     var html = $"""
         <div class="todo-item" id="todo-{todo.Id}">
@@ -206,16 +260,40 @@ app.MapPut("/todos/{id}/toggle", async (int id, TodoContext db) =>
     return Results.Content(html, "text/html");
 });
 
-app.MapDelete("/todos/{id}", async (int id, TodoContext db) =>
+app.MapDelete("/todos/{id}", async (int id, TodoContext db, HttpContext context) =>
 {
+    var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    Log.Information("🗑️ User {ClientIP} attempting to delete todo item {TodoId}", clientIP, id);
+    
     var todo = await db.TodoItems.FindAsync(id);
     if (todo == null)
+    {
+        Log.Warning("❌ User {ClientIP} attempted to delete non-existent todo item {TodoId}", clientIP, id);
         return Results.NotFound();
+    }
 
+    var todoTitle = todo.Title; // Store title before deletion for logging
     db.TodoItems.Remove(todo);
     await db.SaveChangesAsync();
+    
+    Log.Information("🗑️ User {ClientIP} successfully deleted todo item {TodoId}: '{Title}'", clientIP, id, todoTitle);
 
     return Results.Content("", "text/html");
 });
 
-app.Run();
+// Log application startup
+Log.Information("🚀 HTMX Todo Application starting up...");
+
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "💥 Application terminated unexpectedly");
+}
+finally
+{
+    Log.Information("🛑 HTMX Todo Application shutting down...");
+    Log.CloseAndFlush();
+}
