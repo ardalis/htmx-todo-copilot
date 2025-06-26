@@ -54,6 +54,7 @@ app.MapGet("/", () => Results.Content("""
     <script>
         // Toast notification function
         function showToast(message, type = 'success') {
+            console.log('Showing toast:', message, type); // Debug log
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
@@ -67,15 +68,29 @@ app.MapGet("/", () => Results.Content("""
             // Auto-remove after 3 seconds
             setTimeout(() => {
                 toast.classList.remove('show');
-                setTimeout(() => container.removeChild(toast), 300);
+                setTimeout(() => {
+                    if (container.contains(toast)) {
+                        container.removeChild(toast);
+                    }
+                }, 300);
             }, 3000);
         }
         
-        // Listen for HTMX events
+        // Test function - you can call this in the browser console
+        window.testToast = () => showToast('Test notification!', 'success');
+        
+        // Listen for HTMX events with better debugging
         document.body.addEventListener('htmx:afterRequest', function(event) {
-            if (event.detail.xhr.status === 200) {
-                const method = event.detail.requestConfig.verb;
-                const url = event.detail.requestConfig.path;
+            console.log('HTMX afterRequest event:', event.detail); // Debug log
+            
+            const xhr = event.detail.xhr;
+            const requestConfig = event.detail.requestConfig;
+            
+            if (xhr.status === 200 && requestConfig) {
+                const method = requestConfig.verb.toUpperCase();
+                const url = requestConfig.path;
+                
+                console.log('Request details:', method, url); // Debug log
                 
                 if (method === 'POST' && url === '/todos') {
                     showToast('Todo item added successfully!', 'success');
@@ -87,11 +102,19 @@ app.MapGet("/", () => Results.Content("""
             }
         });
         
+        // Alternative: Listen for specific HTMX events
+        document.body.addEventListener('htmx:afterSwap', function(event) {
+            console.log('HTMX afterSwap event:', event.detail); // Debug log
+        });
+        
         // Clear form after successful POST
         document.body.addEventListener('htmx:afterRequest', function(event) {
-            if (event.detail.xhr.status === 200 && 
-                event.detail.requestConfig.verb === 'POST' && 
-                event.detail.requestConfig.path === '/todos') {
+            const xhr = event.detail.xhr;
+            const requestConfig = event.detail.requestConfig;
+            
+            if (xhr.status === 200 && 
+                requestConfig.verb === 'POST' && 
+                requestConfig.path === '/todos') {
                 const form = event.detail.elt;
                 if (form.tagName === 'FORM') {
                     form.reset();
