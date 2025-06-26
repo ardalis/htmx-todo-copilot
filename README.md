@@ -164,3 +164,128 @@ public class UserActionLoggingMiddleware
     }
 }
 ```
+
+## SignalR
+
+![image](https://github.com/user-attachments/assets/a6de87a2-77cd-4e20-89d8-7320f031b241)
+
+```text
+Let me implement this step by step:
+
+Now let's create a SignalR Hub for real-time communication:
+
+Created TodoHub.cs
+
+Now let's create a service to handle SignalR notifications:
+
+Created TodoNotificationService.cs
+
+Now let's update Program.cs to register SignalR and the notification service:
+
+Program.cs+1-0
+Program.cs+2-0
+Now let's add the SignalR hub to the pipeline:
+
+Read Program.cs, lines 140 to 150
+
+Let me find where the app.Run() is and add the hub mapping before it:
+
+Read Program.cs, lines 257 to 267
+
+Let me find where the endpoints end:
+
+Read Program.cs, lines 240 to 250
+
+Program.cs+3-0
+Now let's update the endpoints to use the notification service. First, let's update the POST endpoint:
+
+Program.cs+4-1
+Now let's update the PUT endpoint:
+
+Program.cs+4-1
+Now let's update the DELETE endpoint:
+
+Program.cs+5-1
+Now let's update the HTML to include SignalR JavaScript client and handle real-time updates:
+
+Program.cs+65-14
+Summarized conversation history
+```
+
+Here's the new service it created:
+
+```csharp
+using Microsoft.AspNetCore.SignalR;
+using MyMinimalApi.Hubs;
+using MyMinimalApi.Models;
+
+namespace MyMinimalApi.Services;
+
+public interface ITodoNotificationService
+{
+    Task NotifyTodoAdded(TodoItem todo);
+    Task NotifyTodoToggled(TodoItem todo);
+    Task NotifyTodoDeleted(int todoId, string title);
+}
+
+public class TodoNotificationService : ITodoNotificationService
+{
+    private readonly IHubContext<TodoHub> _hubContext;
+
+    public TodoNotificationService(IHubContext<TodoHub> hubContext)
+    {
+        _hubContext = hubContext;
+    }
+
+    public async Task NotifyTodoAdded(TodoItem todo)
+    {
+        await _hubContext.Clients.All.SendAsync("TodoAdded", new
+        {
+            id = todo.Id,
+            title = todo.Title,
+            isCompleted = todo.IsCompleted,
+            createdAt = todo.CreatedAt,
+            html = GenerateTodoItemHtml(todo)
+        });
+    }
+
+    public async Task NotifyTodoToggled(TodoItem todo)
+    {
+        await _hubContext.Clients.All.SendAsync("TodoToggled", new
+        {
+            id = todo.Id,
+            title = todo.Title,
+            isCompleted = todo.IsCompleted,
+            html = GenerateTodoItemHtml(todo)
+        });
+    }
+
+    public async Task NotifyTodoDeleted(int todoId, string title)
+    {
+        await _hubContext.Clients.All.SendAsync("TodoDeleted", new
+        {
+            id = todoId,
+            title = title
+        });
+    }
+
+    private static string GenerateTodoItemHtml(TodoItem todo)
+    {
+        return $"""
+            <div class="todo-item" id="todo-{todo.Id}">
+                <input type="checkbox" {(todo.IsCompleted ? "checked" : "")} 
+                       hx-put="/todos/{todo.Id}/toggle" 
+                       hx-target="#todo-{todo.Id}" 
+                       hx-swap="outerHTML" />
+                <span class="{(todo.IsCompleted ? "completed" : "")}">{todo.Title}</span>
+                <button hx-delete="/todos/{todo.Id}" 
+                        hx-target="#todo-{todo.Id}" 
+                        hx-swap="outerHTML" 
+                        class="delete-btn">Delete</button>
+            </div>
+        """;
+    }
+}
+```
+
+
