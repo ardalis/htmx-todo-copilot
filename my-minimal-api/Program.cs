@@ -47,6 +47,58 @@ app.MapGet("/", () => Results.Content("""
         <h1>Todo Application</h1>
         <div id="todo-app" hx-get="/todos" hx-trigger="load"></div>
     </div>
+    
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+    
+    <script>
+        // Toast notification function
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => toast.classList.add('show'), 100);
+            
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => container.removeChild(toast), 300);
+            }, 3000);
+        }
+        
+        // Listen for HTMX events
+        document.body.addEventListener('htmx:afterRequest', function(event) {
+            if (event.detail.xhr.status === 200) {
+                const method = event.detail.requestConfig.verb;
+                const url = event.detail.requestConfig.path;
+                
+                if (method === 'POST' && url === '/todos') {
+                    showToast('Todo item added successfully!', 'success');
+                } else if (method === 'DELETE' && url.startsWith('/todos/')) {
+                    showToast('Todo item deleted!', 'info');
+                } else if (method === 'PUT' && url.includes('/toggle')) {
+                    showToast('Todo item updated!', 'info');
+                }
+            }
+        });
+        
+        // Clear form after successful POST
+        document.body.addEventListener('htmx:afterRequest', function(event) {
+            if (event.detail.xhr.status === 200 && 
+                event.detail.requestConfig.verb === 'POST' && 
+                event.detail.requestConfig.path === '/todos') {
+                const form = event.detail.elt;
+                if (form.tagName === 'FORM') {
+                    form.reset();
+                }
+            }
+        });
+    </script>
 </body>
 </html>
 """, "text/html"));
