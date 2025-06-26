@@ -304,6 +304,11 @@ End result:
 
 ![image](https://github.com/user-attachments/assets/189ca098-1307-4aa4-92b6-bda1b4291059)
 
+## Move Serilog logic to config
+
+![image](https://github.com/user-attachments/assets/f5413d6a-e556-4c11-8034-a124efe24767)
+
+
 
 
 
