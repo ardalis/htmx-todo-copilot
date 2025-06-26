@@ -10,11 +10,13 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services
 builder.Services.AddDbContext<TodoContext>(options =>
     options.UseInMemoryDatabase("TodoDb"));
+builder.Services.AddAntiforgery();
 
 var app = builder.Build();
 
 // Configure static files
 app.UseStaticFiles();
+app.UseAntiforgery();
 
 // Seed some sample data
 using (var scope = app.Services.CreateScope())
@@ -102,7 +104,7 @@ app.MapPost("/todos", async (TodoContext db, IFormCollection form) =>
         </div>
     """;
     return Results.Content(html, "text/html");
-});
+}).DisableAntiforgery();
 
 app.MapPut("/todos/{id}/toggle", async (int id, TodoContext db) =>
 {
