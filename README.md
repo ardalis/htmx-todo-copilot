@@ -296,4 +296,14 @@ Initial working version between browsers instances:
 
 ![image](https://github.com/user-attachments/assets/b2892138-7738-4d8d-9b46-b153102880fe)
 
+It created a bunch of extensions:
+
+![image](https://github.com/user-attachments/assets/07d0bd09-83be-4332-a950-10b6caf76f64)
+
+End result:
+
+![image](https://github.com/user-attachments/assets/189ca098-1307-4aa4-92b6-bda1b4291059)
+
+
+
 
