@@ -30,6 +30,13 @@ public static class PageEndpoints
                 <div id="toast-container" class="toast-container"></div>
                 
                 <script>
+                    // Track pending local actions to avoid duplicate updates
+                    const pendingActions = {
+                        adding: false,
+                        toggling: new Set(),
+                        deleting: new Set()
+                    };
+
                     // SignalR Connection
                     const connection = new signalR.HubConnectionBuilder()
                         .withUrl("/todoHub")
@@ -74,6 +81,12 @@ public static class PageEndpoints
                     connection.on("TodoAdded", function (data) {
                         console.log('Todo added via SignalR:', data);
                         
+                        // Ignore if we're currently adding a todo locally
+                        if (pendingActions.adding) {
+                            console.log('Ignoring SignalR TodoAdded - local action in progress');
+                            return;
+                        }
+                        
                         // Add the new todo to the list if it doesn't exist
                         if (!document.getElementById(`todo-${data.id}`)) {
                             const todoList = document.getElementById('todo-list');
@@ -88,6 +101,12 @@ public static class PageEndpoints
                     connection.on("TodoToggled", function (data) {
                         console.log('Todo toggled via SignalR:', data);
                         
+                        // Ignore if we're currently toggling this specific todo locally
+                        if (pendingActions.toggling.has(data.id)) {
+                            console.log(`Ignoring SignalR TodoToggled for ${data.id} - local action in progress`);
+                            return;
+                        }
+                        
                         const todoElement = document.getElementById(`todo-${data.id}`);
                         if (todoElement) {
                             todoElement.outerHTML = data.html;
@@ -99,6 +118,12 @@ public static class PageEndpoints
 
                     connection.on("TodoDeleted", function (data) {
                         console.log('Todo deleted via SignalR:', data);
+                        
+                        // Ignore if we're currently deleting this specific todo locally
+                        if (pendingActions.deleting.has(data.id)) {
+                            console.log(`Ignoring SignalR TodoDeleted for ${data.id} - local action in progress`);
+                            return;
+                        }
                         
                         const todoElement = document.getElementById(`todo-${data.id}`);
                         if (todoElement) {
@@ -112,24 +137,70 @@ public static class PageEndpoints
                     window.testToast = () => showToast('Test notification!', 'success');
                     
                     // HTMX event handlers for local actions
+                    document.body.addEventListener('htmx:beforeRequest', function(event) {
+                        const requestConfig = event.detail.requestConfig;
+                        const method = requestConfig.verb.toUpperCase();
+                        const url = requestConfig.path;
+                        
+                        console.log('HTMX beforeRequest:', method, url);
+                        
+                        // Track pending local actions
+                        if (method === 'POST' && url === '/todos') {
+                            pendingActions.adding = true;
+                            console.log('Tracking local todo addition');
+                        } else if (method === 'PUT' && url.includes('/toggle')) {
+                            const todoId = parseInt(url.split('/')[2]);
+                            pendingActions.toggling.add(todoId);
+                            console.log(`Tracking local todo toggle for ${todoId}`);
+                        } else if (method === 'DELETE' && url.startsWith('/todos/')) {
+                            const todoId = parseInt(url.split('/')[2]);
+                            pendingActions.deleting.add(todoId);
+                            console.log(`Tracking local todo deletion for ${todoId}`);
+                        }
+                    });
+
                     document.body.addEventListener('htmx:afterRequest', function(event) {
                         console.log('HTMX afterRequest event:', event.detail);
                         
                         const xhr = event.detail.xhr;
                         const requestConfig = event.detail.requestConfig;
+                        const method = requestConfig.verb.toUpperCase();
+                        const url = requestConfig.path;
                         
-                        if (xhr.status === 200 && requestConfig) {
-                            const method = requestConfig.verb.toUpperCase();
-                            const url = requestConfig.path;
-                            
-                            console.log('Request details:', method, url);
-                            
+                        // Clear pending action flags and show success toasts
+                        if (xhr.status === 200) {
                             if (method === 'POST' && url === '/todos') {
+                                // Clear the pending flag after a short delay to ensure SignalR message is ignored
+                                setTimeout(() => {
+                                    pendingActions.adding = false;
+                                    console.log('Cleared pending addition flag');
+                                }, 100);
                                 showToast('Todo item added successfully!', 'success');
-                            } else if (method === 'DELETE' && url.startsWith('/todos/')) {
-                                showToast('Todo item deleted!', 'success');
                             } else if (method === 'PUT' && url.includes('/toggle')) {
+                                const todoId = parseInt(url.split('/')[2]);
+                                setTimeout(() => {
+                                    pendingActions.toggling.delete(todoId);
+                                    console.log(`Cleared pending toggle flag for ${todoId}`);
+                                }, 100);
                                 showToast('Todo item updated!', 'success');
+                            } else if (method === 'DELETE' && url.startsWith('/todos/')) {
+                                const todoId = parseInt(url.split('/')[2]);
+                                setTimeout(() => {
+                                    pendingActions.deleting.delete(todoId);
+                                    console.log(`Cleared pending deletion flag for ${todoId}`);
+                                }, 100);
+                                showToast('Todo item deleted!', 'success');
+                            }
+                        } else {
+                            // Clear pending flags on error too
+                            if (method === 'POST' && url === '/todos') {
+                                pendingActions.adding = false;
+                            } else if (method === 'PUT' && url.includes('/toggle')) {
+                                const todoId = parseInt(url.split('/')[2]);
+                                pendingActions.toggling.delete(todoId);
+                            } else if (method === 'DELETE' && url.startsWith('/todos/')) {
+                                const todoId = parseInt(url.split('/')[2]);
+                                pendingActions.deleting.delete(todoId);
                             }
                         }
                     });
