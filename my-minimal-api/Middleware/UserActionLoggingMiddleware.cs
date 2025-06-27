@@ -23,8 +23,8 @@ public class UserActionLoggingMiddleware
         // Log the incoming request with appropriate emoji
         var emoji = GetActionEmoji(method, path);
         var actionDescription = GetActionDescription(method, path);
-        
-        _logger.Information("{Emoji} User {ClientIP} {ActionDescription} - {Method} {Path}", 
+
+        _logger.Information("{Emoji} User {ClientIP} {ActionDescription} - {Method} {Path}",
             emoji, clientIP, actionDescription, method, path);
 
         // Capture request body for POST requests (for todo creation)
@@ -97,7 +97,7 @@ public class UserActionLoggingMiddleware
         }
         else if (statusCode >= 400)
         {
-            _logger.Warning("❌ User {ClientIP} request failed - {Method} {Path} returned {StatusCode}", 
+            _logger.Warning("❌ User {ClientIP} request failed - {Method} {Path} returned {StatusCode}",
                 clientIP, method, path, statusCode);
         }
     }
@@ -131,7 +131,7 @@ public class UserActionLoggingMiddleware
     private static string? ExtractTitleFromRequestBody(string? requestBody)
     {
         if (string.IsNullOrEmpty(requestBody)) return "unknown";
-        
+
         // Simple form parsing for title=value
         var titleMatch = System.Text.RegularExpressions.Regex.Match(requestBody, @"title=([^&]+)");
         return titleMatch.Success ? System.Web.HttpUtility.UrlDecode(titleMatch.Groups[1].Value) : "unknown";

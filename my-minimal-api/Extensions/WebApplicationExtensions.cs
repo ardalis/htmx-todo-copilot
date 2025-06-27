@@ -15,21 +15,21 @@ public static class WebApplicationExtensions
         app.UseStaticFiles();
         app.UseAntiforgery();
         app.UseMiddleware<UserActionLoggingMiddleware>();
-        
+
         // Seed data
         app.SeedTodoData();
-        
+
         // Map SignalR hub
         app.MapHub<TodoHub>("/todoHub");
-        
+
         return app;
     }
-    
+
     private static void SeedTodoData(this WebApplication app)
     {
         using var scope = app.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<TodoContext>();
-        
+
         if (!context.TodoItems.Any())
         {
             Log.Information("🌱 Seeding database with initial todo items");

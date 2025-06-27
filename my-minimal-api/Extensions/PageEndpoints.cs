@@ -40,7 +40,7 @@ public static class PageEndpoints
                     
                     connection.start().then(() => {
                         console.log('SignalR Connected');
-                        statusElement.innerHTML = '🟢 Live Updates Active';
+                        statusElement.innerHTML = 'Live Updates Active';
                         statusElement.style.color = '#28a745';
                     }).catch(err => {
                         console.error('SignalR Connection Error: ', err);
@@ -152,7 +152,7 @@ public static class PageEndpoints
             </body>
             </html>
         """;
-        
+
         return Results.Content(html, "text/html");
     }
 }

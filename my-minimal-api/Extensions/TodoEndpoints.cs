@@ -13,7 +13,7 @@ public static class TodoEndpoints
         endpoints.MapPost("/todos", CreateTodo).DisableAntiforgery();
         endpoints.MapPut("/todos/{id}/toggle", ToggleTodo);
         endpoints.MapDelete("/todos/{id}", DeleteTodo);
-        
+
         return endpoints;
     }
 
@@ -49,14 +49,14 @@ public static class TodoEndpoints
     private static async Task<IResult> CreateTodo(TodoContext db, IFormCollection form, ITodoNotificationService notificationService)
     {
         var title = form["title"].ToString();
-        
+
         if (string.IsNullOrWhiteSpace(title))
             return Results.BadRequest();
 
         var todo = new TodoItem { Title = title };
         db.TodoItems.Add(todo);
         await db.SaveChangesAsync();
-        
+
         // Notify all connected clients
         await notificationService.NotifyTodoAdded(todo);
 
@@ -83,7 +83,7 @@ public static class TodoEndpoints
 
         todo.IsCompleted = !todo.IsCompleted;
         await db.SaveChangesAsync();
-        
+
         // Notify all connected clients
         await notificationService.NotifyTodoToggled(todo);
 
@@ -112,7 +112,7 @@ public static class TodoEndpoints
         var todoTitle = todo.Title; // Store title before deletion
         db.TodoItems.Remove(todo);
         await db.SaveChangesAsync();
-        
+
         // Notify all connected clients
         await notificationService.NotifyTodoDeleted(id, todoTitle);
 

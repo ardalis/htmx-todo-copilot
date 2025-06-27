@@ -10,11 +10,11 @@ public static class ServiceCollectionExtensions
     {
         services.AddDbContext<TodoContext>(options =>
             options.UseInMemoryDatabase("TodoDb"));
-        
+
         services.AddAntiforgery();
         services.AddSignalR();
         services.AddScoped<ITodoNotificationService, TodoNotificationService>();
-        
+
         return services;
     }
 }
